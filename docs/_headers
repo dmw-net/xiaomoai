@@ -1,0 +1,25 @@
+# ============================================
+# Cloudflare Pages _headers - 安全头部配置
+# ============================================
+# 此文件放置在构建输出目录根目录
+# Cloudflare Pages 会自动应用这些 HTTP 头部
+# ============================================
+
+# 全局安全头部
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# 静态资源缓存策略（CDN 加速）
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML 文件缓存策略（确保用户获取最新版本）
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Service Worker 不缓存
+/sw.js
+  Cache-Control: no-cache
