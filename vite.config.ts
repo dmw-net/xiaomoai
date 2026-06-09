@@ -25,7 +25,7 @@ const isCloudflare = DEPLOY_TARGET === 'cloudflare';
 export default defineConfig({
   build: {
     // Cloudflare Pages 使用 dist/，GitHub Pages 使用 docs/
-    outDir: isCloudflare ? 'dist' : 'docs'
+    outDir: 'dist'
   },
   plugins: [vue()],
   // Cloudflare Pages 使用根路径部署，GitHub Pages 使用项目路径
