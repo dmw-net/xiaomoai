@@ -1,0 +1,72 @@
+# ============================================
+# GitHub Actions 工作流 - 前端 Cloudflare Pages 部署
+# ============================================
+# 仓库托管：GitHub
+# 触发条件：push to main / 手动触发
+# 部署目标：Cloudflare Pages（CDN 加速 + HTTPS）
+# ============================================
+
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # 手动触发
+
+# 确保同一分支只运行一个部署
+concurrency:
+  group: deploy-cloudflare-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      # ---- 步骤一：代码拉取 ----
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---- 步骤二：安装 Node.js ----
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # ---- 步骤三：安装依赖 ----
+      - name: Install dependencies
+        run: npm ci
+
+      # ---- 步骤四：构建 ----
+      - name: Build
+        run: npm run build
+        env:
+          VITE_DEPLOY_TARGET: cloudflare
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+
+      # ---- 步骤五：部署到 Cloudflare Pages ----
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ai-study-buddy
+          directory: dist
+          # 可选：指定分支部署
+          # branch: main
+          # 可选：指定 Git commit 信息
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---- 步骤六：部署通知 ----
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** https://ai-study-buddy.pages.dev" >> $GITHUB_STEP_SUMMARY
