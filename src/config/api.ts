@@ -1,5 +1,7 @@
 const isProduction = import.meta.env.PROD;
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+const DEV_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+const PROD_URL = 'https://api.2025521.online';
+const BASE_URL = isProduction ? PROD_URL : DEV_URL;
 
 export const API_CONFIG = {
   BASE_URL: isProduction ? `${BASE_URL}/api` : '/api',
