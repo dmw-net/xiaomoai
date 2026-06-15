@@ -16,8 +16,8 @@ import vue from '@vitejs/plugin-vue';
 // 从 .env 文件读取后端地址，默认 localhost:8081
 const API_TARGET = process.env.VITE_API_BASE_URL || 'http://localhost:8081';
 
-// 部署目标：cloudflare 或 github-pages（默认）
-const DEPLOY_TARGET = process.env.VITE_DEPLOY_TARGET || 'github-pages';
+// 部署目标：cloudflare（默认）或 github-pages
+const DEPLOY_TARGET = process.env.VITE_DEPLOY_TARGET || 'cloudflare';
 
 // 根据部署目标配置 base 和 outDir
 const isCloudflare = DEPLOY_TARGET === 'cloudflare';
