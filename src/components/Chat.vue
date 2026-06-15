@@ -9,10 +9,20 @@
 
     <aside class="history-panel" :class="{ open: sidebarOpen }" @click.self="sidebarOpen = false">
       <div class="brand-block">
-        <div class="brand-mark"><Icon icon="sparkles" :size="28" /></div>
+        <div class="brand-mark" :class="{ 'has-image': aiAvatarUrl }">
+          <img
+            v-if="aiAvatarUrl"
+            class="avatar-img"
+            :src="aiAvatarUrl"
+            :alt="aiAvatarAlt"
+            referrerpolicy="no-referrer"
+            @error="onAiAvatarError"
+          />
+          <Icon v-else icon="sparkles" :size="28" />
+        </div>
         <div>
-          <h1>AI 学习伙伴</h1>
-          <p>{{ userInfo?.nickname || userInfo?.username || '未登录' }}</p>
+          <h1>小茉</h1>
+          <p>你的 AI 学习伙伴</p>
         </div>
       </div>
 
@@ -42,7 +52,7 @@
             type="button"
             aria-label="删除对话"
             title="删除对话"
-            @click.stop="deleteConversation(conversation.id)"
+            @click.stop="confirmDelete(conversation.id)"
           >
             <Icon icon="close" :size="16" />
           </button>
@@ -53,34 +63,127 @@
         </div>
       </div>
 
-      <details class="theme-menu">
-        <summary class="theme-trigger">
-          <Icon icon="palette" :size="16" />
-          <span>主题</span>
-          <strong>{{ currentThemeOption.label }}</strong>
-          <Icon icon="chevron-down" :size="14" />
-        </summary>
-        <div class="theme-panel" aria-label="选择主题">
-          <button
-            v-for="theme in themeOptions"
-            :key="theme.name"
-            class="theme-option"
-            type="button"
-            :class="{ active: currentTheme === theme.name }"
-            :aria-pressed="currentTheme === theme.name"
-            :title="theme.description"
-            @click="onSelectTheme(theme.name, $event)"
-          >
-            <span>{{ theme.label }}</span>
-            <small>{{ theme.description }}</small>
-          </button>
-        </div>
-      </details>
+      <div class="sidebar-bottom">
+        <button class="profile-trigger" type="button" @click="openProfile">
+          <div class="profile-avatar" :class="{ 'has-image': userAvatarUrl }">
+            <img
+              v-if="userAvatarUrl"
+              class="avatar-img"
+              :src="userAvatarUrl"
+              :alt="userAvatarAlt"
+              referrerpolicy="no-referrer"
+              @error="onUserAvatarError"
+            />
+            <Icon v-else icon="user" :size="20" />
+          </div>
+          <span class="profile-name">{{ userDisplayName }}</span>
+          <Icon icon="chevron-right" :size="14" class="profile-arrow" />
+        </button>
+        <button class="logout" type="button" @click="confirmLogout">
+          <Icon icon="logout" :size="18" />
+          <span>退出登录</span>
+        </button>
+      </div>
 
-      <button class="logout" type="button" @click="emit('logout')">
-        <Icon icon="logout" :size="18" />
-        <span>退出登录</span>
-      </button>
+      <!-- 个人信息弹窗 -->
+      <Teleport to="body">
+        <div v-if="profileOpen" class="profile-overlay" @click.self="closeProfile">
+          <div class="profile-modal">
+            <div class="profile-modal-header">
+              <h3>个人信息</h3>
+              <button class="profile-close" type="button" @click="closeProfile">
+                <Icon icon="close" :size="18" />
+              </button>
+            </div>
+
+            <div class="profile-modal-body">
+              <div class="profile-avatar-section">
+                <div class="profile-avatar-lg" :class="{ 'has-image': userAvatarUrl }">
+                  <img
+                    v-if="userAvatarUrl"
+                    class="avatar-img"
+                    :src="userAvatarUrl"
+                    :alt="userAvatarAlt"
+                    referrerpolicy="no-referrer"
+                    @error="onUserAvatarError"
+                  />
+                  <Icon v-else icon="user" :size="32" />
+                </div>
+              </div>
+
+              <form @submit.prevent="saveProfile">
+                <label class="profile-field">
+                  <span>昵称</span>
+                  <input
+                    v-model="profileForm.nickname"
+                    type="text"
+                    maxlength="50"
+                    placeholder="设置昵称"
+                    :disabled="profileSaving"
+                  />
+                </label>
+
+                <label class="profile-field">
+                  <span>QQ 号（用于头像）</span>
+                  <input
+                    v-model="profileForm.userQq"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="输入 QQ 号"
+                    :disabled="profileSaving"
+                  />
+                </label>
+
+                <div class="profile-section-label">AI 头像 QQ</div>
+                <label class="profile-field">
+                  <input
+                      v-model="profileForm.aiQq"
+                      type="text"
+                      inputmode="numeric"
+                      autocomplete="off"
+                      placeholder="设置 AI 头像的 QQ 号"
+                      :disabled="profileSaving"
+                  />
+                </label>
+
+                <div class="profile-section-label">主题风格</div>
+                <div class="profile-theme-grid">
+                  <button
+                    v-for="theme in themeOptions"
+                    :key="theme.name"
+                    class="profile-theme-btn"
+                    type="button"
+                    :class="{ active: currentTheme === theme.name }"
+                    @click="onSelectTheme(theme.name)"
+                  >
+                    <span>{{ theme.label }}</span>
+                    <small>{{ theme.description }}</small>
+                  </button>
+                </div>
+
+                <button class="profile-save" type="submit" :disabled="profileSaving">
+                  {{ profileSaving ? '保存中...' : '保存修改' }}
+                </button>
+                <p v-if="profileStatus" class="profile-status">{{ profileStatus }}</p>
+              </form>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <!-- 确认弹窗 -->
+      <Teleport to="body">
+        <div v-if="confirmDialog.open" class="confirm-overlay" @click.self="cancelConfirm">
+          <div class="confirm-modal">
+            <p class="confirm-msg">{{ confirmDialog.message }}</p>
+            <div class="confirm-actions">
+              <button class="confirm-cancel" type="button" @click="cancelConfirm">取消</button>
+              <button class="confirm-ok" type="button" @click="doConfirm">确定</button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
     </aside>
 
     <main class="chat-main">
@@ -100,8 +203,9 @@
 
       <div ref="scrollContainer" class="message-stage">
         <section v-if="messagesLoading" class="empty-state compact">
-          <div class="typing-indicator">
-            <span></span><span></span><span></span>
+          <div class="typing-indicator" role="status" aria-live="polite" aria-label="正在加载对话">
+            <span class="thinking-copy">加载中</span>
+            <span class="thinking-dots" aria-hidden="true"><span></span><span></span><span></span></span>
           </div>
           <p>加载对话中...</p>
         </section>
@@ -130,13 +234,30 @@
           style="animation: msg-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards"
           :style="{ animationDelay: `${Math.min(index * 0.04, 0.3)}s` }"
         >
-          <div class="avatar">
-            <Icon :icon="message.role === 'user' ? 'user' : 'bot'" :size="22" />
+          <div class="avatar" :class="{ 'has-image': message.role === 'user' ? !!userAvatarUrl : !!aiAvatarUrl }">
+            <img
+              v-if="message.role === 'user' && userAvatarUrl"
+              class="avatar-img"
+              :src="userAvatarUrl"
+              :alt="userAvatarAlt"
+              referrerpolicy="no-referrer"
+              @error="onUserAvatarError"
+            />
+            <img
+              v-else-if="message.role === 'assistant' && aiAvatarUrl"
+              class="avatar-img"
+              :src="aiAvatarUrl"
+              :alt="aiAvatarAlt"
+              referrerpolicy="no-referrer"
+              @error="onAiAvatarError"
+            />
+            <Icon v-else :icon="message.role === 'user' ? 'user' : 'bot'" :size="22" />
           </div>
           <article class="message-bubble">
             <div v-if="message.role === 'assistant' && message.content" class="md-content" v-html="renderMarkdown(message.content)"></div>
-            <div v-else-if="message.role === 'assistant' && !message.content" class="typing-indicator">
-              <span></span><span></span><span></span>
+            <div v-else-if="message.role === 'assistant' && !message.content" class="typing-indicator" role="status" aria-live="polite" aria-label="AI 正在思考">
+              <span class="thinking-copy">思考中</span>
+              <span class="thinking-dots" aria-hidden="true"><span></span><span></span><span></span></span>
             </div>
             <p v-if="message.role === 'user'">{{ message.content || '...' }}</p>
           </article>
@@ -173,10 +294,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { marked } from 'marked';
 import Icon from './Icon.vue';
-import { API_CONFIG, getApiUrl, getToken, getUser } from '../config/api';
+import { API_CONFIG, getApiUrl, getToken, getUser, setUser } from '../config/api';
 import { getTheme, setTheme, THEME_OPTIONS } from '../config/theme';
 import type { UserInfo } from '../config/api';
 import type { ThemeName } from '../config/theme';
@@ -197,6 +318,15 @@ interface ChatMessage {
   createdAt?: string;
 }
 
+interface AvatarSettings {
+  userQq?: string | null;
+  userAvatarUrl?: string | null;
+  userResolvedAvatarUrl?: string | null;
+  aiQq?: string | null;
+  aiAvatarUrl?: string | null;
+  nickname?: string | null;
+}
+
 marked.setOptions({ gfm: true, breaks: true });
 
 const emit = defineEmits<{ (e: 'logout'): void }>();
@@ -215,11 +345,23 @@ const userNearBottom = ref(true);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const abortController = ref<AbortController | null>(null);
 const userStopped = ref(false);
+const userAvatarFailed = ref(false);
+const aiAvatarFailed = ref(false);
+const avatarSettings = ref<AvatarSettings | null>(null);
+const avatarForm = reactive({ userQq: '', aiQq: '' });
+const avatarSaving = ref(false);
+const avatarStatus = ref('');
+const profileOpen = ref(false);
+const profileForm = reactive({ nickname: '', userQq: '', aiQq: '' });
+const profileSaving = ref(false);
+const profileStatus = ref('');
+const confirmDialog = reactive({
+  open: false,
+  message: '',
+  action: null as (() => void) | null,
+});
 const currentTheme = ref<ThemeName>(getTheme());
 const themeOptions = THEME_OPTIONS;
-const currentThemeOption = computed(() =>
-  themeOptions.find(t => t.name === currentTheme.value) || themeOptions[0]
-);
 
 const starterPrompts = [
   '帮我找找最新 AIAgent 学习教程',
@@ -231,16 +373,81 @@ const activeConversation = computed(() =>
   conversations.value.find(item => item.id === activeConversationId.value) || null
 );
 const canSend = computed(() => inputText.value.trim().length > 0 && !loading.value);
+const userDisplayName = computed(() =>
+  userInfo.value?.nickname || userInfo.value?.username || '未登录'
+);
+const userAvatarAlt = computed(() => `${userDisplayName.value} 的头像`);
+const userAvatarUrl = computed(() => {
+  if (userAvatarFailed.value) return '';
+
+  const resolvedAvatar = normalizeAvatarUrl(userInfo.value?.resolvedAvatarUrl);
+  if (resolvedAvatar) return resolvedAvatar;
+
+  const storedAvatar = normalizeAvatarUrl(userInfo.value?.avatarUrl);
+  if (storedAvatar) return storedAvatar;
+
+  const qqNumber = findQqNumber(userInfo.value);
+  if (!qqNumber) return '';
+
+  return buildQqAvatarUrl(qqNumber);
+});
+const aiAvatarAlt = computed(() => 'AI 的头像');
+const aiAvatarUrl = computed(() => {
+  if (aiAvatarFailed.value) return '';
+
+  const storedAvatar = normalizeAvatarUrl(avatarSettings.value?.aiAvatarUrl);
+  if (storedAvatar) return storedAvatar;
+
+  const qqNumber = normalizeQqNumber(avatarSettings.value?.aiQq);
+  return qqNumber ? buildQqAvatarUrl(qqNumber) : '';
+});
 
 function renderMarkdown(content: string): string {
   if (!content) return '';
   return marked.parse(content) as string;
 }
 
-function onSelectTheme(theme: ThemeName, event?: MouseEvent) {
+function normalizeAvatarUrl(value?: string | null): string {
+  const avatarUrl = value?.trim();
+  if (!avatarUrl || !/^https?:\/\//i.test(avatarUrl)) return '';
+  return avatarUrl;
+}
+
+function normalizeQqNumber(value?: string | null): string {
+  const qqNumber = value?.trim() || '';
+  return isValidQqNumber(qqNumber) ? qqNumber : '';
+}
+
+function buildQqAvatarUrl(qqNumber: string): string {
+  return `http://q.qlogo.cn/headimg_dl?dst_uin=${encodeURIComponent(qqNumber)}&spec=640&img_type=jpg`;
+}
+
+function findQqNumber(user: UserInfo | null): string {
+  const candidates = [
+    user?.qq,
+    user?.username,
+    user?.nickname,
+  ];
+  return candidates
+    .map(value => value?.trim() || '')
+    .find(isValidQqNumber) || '';
+}
+
+function isValidQqNumber(value: string): boolean {
+  return /^[1-9]\d{4,11}$/.test(value);
+}
+
+function onUserAvatarError() {
+  userAvatarFailed.value = true;
+}
+
+function onAiAvatarError() {
+  aiAvatarFailed.value = true;
+}
+
+function onSelectTheme(theme: ThemeName) {
   currentTheme.value = theme;
   setTheme(theme);
-  (event?.currentTarget as HTMLElement | null)?.closest('details')?.removeAttribute('open');
 }
 
 /* ---- Auto-resize textarea ---- */
@@ -292,17 +499,26 @@ function onScroll() {
   userNearBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
 }
 
+function onEscKey(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return;
+  if (confirmDialog.open) cancelConfirm();
+  else if (profileOpen.value) closeProfile();
+}
+
 onMounted(async () => {
+  await loadAvatarSettings();
   await loadConversations();
   if (conversations.value.length > 0) {
     await selectConversation(conversations.value[0].id);
   }
   scrollContainer.value?.addEventListener('scroll', onScroll, { passive: true });
+  document.addEventListener('keydown', onEscKey);
 });
 
 onUnmounted(() => {
   closeStream();
   scrollContainer.value?.removeEventListener('scroll', onScroll);
+  document.removeEventListener('keydown', onEscKey);
 });
 
 watch(messages, async () => {
@@ -330,6 +546,99 @@ async function requestJson<T>(url: string, options: RequestInit = {}): Promise<T
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
+}
+
+/* ---- Avatar settings ---- */
+async function loadAvatarSettings() {
+  try {
+    const settings = await requestJson<AvatarSettings>(
+      getApiUrl(API_CONFIG.ENDPOINTS.AVATAR_SETTINGS)
+    );
+    applyAvatarSettings(settings);
+  } catch {
+    avatarStatus.value = '';
+  }
+}
+
+async function saveAvatarSettings() {
+  if (avatarSaving.value) return;
+  avatarSaving.value = true;
+  avatarStatus.value = '';
+  try {
+    const settings = await requestJson<AvatarSettings>(
+      getApiUrl(API_CONFIG.ENDPOINTS.AVATAR_SETTINGS),
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          userQq: avatarForm.userQq.trim(),
+          aiQq: avatarForm.aiQq.trim(),
+        }),
+      }
+    );
+    applyAvatarSettings(settings);
+    avatarStatus.value = '头像已更新';
+  } catch {
+    avatarStatus.value = '保存失败，请检查 QQ 号码';
+  } finally {
+    avatarSaving.value = false;
+  }
+}
+
+function applyAvatarSettings(settings: AvatarSettings) {
+  avatarSettings.value = settings;
+  avatarForm.userQq = settings.userQq || '';
+  avatarForm.aiQq = settings.aiQq || '';
+  userAvatarFailed.value = false;
+  aiAvatarFailed.value = false;
+
+  if (!userInfo.value) return;
+  userInfo.value = {
+    ...userInfo.value,
+    nickname: settings.nickname || userInfo.value.nickname,
+    qq: settings.userQq || undefined,
+    avatarUrl: settings.userAvatarUrl || undefined,
+    resolvedAvatarUrl: settings.userResolvedAvatarUrl || undefined,
+  };
+  setUser(userInfo.value);
+}
+
+/* ---- Profile modal ---- */
+function openProfile() {
+  profileForm.nickname = userInfo.value?.nickname || '';
+  profileForm.userQq = avatarSettings.value?.userQq || '';
+  profileForm.aiQq = avatarSettings.value?.aiQq || '';
+  profileStatus.value = '';
+  profileOpen.value = true;
+}
+
+function closeProfile() {
+  profileOpen.value = false;
+  profileStatus.value = '';
+}
+
+async function saveProfile() {
+  if (profileSaving.value) return;
+  profileSaving.value = true;
+  profileStatus.value = '';
+  try {
+    const settings = await requestJson<AvatarSettings>(
+      getApiUrl(API_CONFIG.ENDPOINTS.AVATAR_SETTINGS),
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          nickname: profileForm.nickname.trim(),
+          userQq: profileForm.userQq.trim(),
+          aiQq: profileForm.aiQq.trim(),
+        }),
+      }
+    );
+    applyAvatarSettings(settings);
+    profileStatus.value = '保存成功';
+  } catch {
+    profileStatus.value = '保存失败，请检查输入';
+  } finally {
+    profileSaving.value = false;
+  }
 }
 
 /* ---- Conversation CRUD ---- */
@@ -369,13 +678,47 @@ function onNewChat() {
   resetTextarea();
 }
 
+function showConfirm(message: string, action: () => void) {
+  confirmDialog.message = message;
+  confirmDialog.action = action;
+  confirmDialog.open = true;
+}
+
+function doConfirm() {
+  const action = confirmDialog.action;
+  confirmDialog.open = false;
+  confirmDialog.action = null;
+  action?.();
+}
+
+function cancelConfirm() {
+  confirmDialog.open = false;
+  confirmDialog.action = null;
+}
+
+function confirmDelete(conversationId: number) {
+  showConfirm('确定要删除这条对话吗？删除后无法恢复。', () => deleteConversation(conversationId));
+}
+
+function confirmLogout() {
+  showConfirm('确定要退出登录吗？', () => emit('logout'));
+}
+
+const deletingIds = new Set<number>();
+
 async function deleteConversation(conversationId: number) {
-  await requestJson<void>(
-    getApiUrl(`${API_CONFIG.ENDPOINTS.CONVERSATIONS}/${conversationId}`),
-    { method: 'DELETE' }
-  );
-  conversations.value = conversations.value.filter(item => item.id !== conversationId);
-  if (activeConversationId.value === conversationId) onNewChat();
+  if (deletingIds.has(conversationId)) return;
+  deletingIds.add(conversationId);
+  try {
+    await requestJson<void>(
+      getApiUrl(`${API_CONFIG.ENDPOINTS.CONVERSATIONS}/${conversationId}`),
+      { method: 'DELETE' }
+    );
+    conversations.value = conversations.value.filter(item => item.id !== conversationId);
+    if (activeConversationId.value === conversationId) onNewChat();
+  } finally {
+    deletingIds.delete(conversationId);
+  }
 }
 
 function usePrompt(prompt: string) {
@@ -384,21 +727,42 @@ function usePrompt(prompt: string) {
 }
 
 /* ---- Send / Stream ---- */
+const SEND_DEBOUNCE_MS = 800;
+let lastSendTime = 0;
+
 async function onSend() {
   const text = inputText.value.trim();
   if (!text || loading.value) return;
 
-  userNearBottom.value = true;
-  const conversation = await ensureConversation(text);
-  if (!conversation) return;
+  // 防抖：短时间内禁止重复发送
+  const now = Date.now();
+  if (now - lastSendTime < SEND_DEBOUNCE_MS) return;
+  lastSendTime = now;
 
+  userNearBottom.value = true;
+  loading.value = true;
+
+  // 立即显示用户消息 + 打字动画，给用户即时反馈
   messages.value.push({ role: 'user', content: text });
+  messages.value.push({ role: 'assistant', content: '' });
   inputText.value = '';
   resetTextarea();
-  messages.value.push({ role: 'assistant', content: '' });
 
   await nextTick();
   scrollToBottom();
+
+  // 然后再做异步操作（创建对话等）
+  const conversation = await ensureConversation(text);
+  if (!conversation) {
+    // 创建对话失败，回滚刚才添加的消息
+    messages.value.pop();
+    messages.value.pop();
+    inputText.value = text;
+    loading.value = false;
+    autoResize();
+    return;
+  }
+
   await openStream(conversation.id, text, messages.value.length - 1);
 }
 
@@ -533,7 +897,15 @@ function buildTitle(text: string) {
 function formatTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+  const time = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  if (isToday) return time;
+  if (isYesterday) return `昨天 ${time}`;
+  return `${date.getMonth() + 1}/${date.getDate()} ${time}`;
 }
 </script>
 
@@ -627,6 +999,22 @@ function formatTime(value: string) {
   background: linear-gradient(135deg, var(--yellow), var(--cyan), var(--magenta));
   font-weight: 1000;
   box-shadow: var(--shadow-glow);
+}
+
+.brand-mark.has-image,
+.avatar.has-image {
+  overflow: hidden;
+  padding: 0;
+  color: transparent;
+  background: var(--panel-strong);
+}
+
+.avatar-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
 }
 
 .brand-block h1 {
@@ -787,82 +1175,359 @@ function formatTime(value: string) {
   font-weight: 900;
 }
 
-/* ---- Theme picker ---- */
-.theme-menu { position: relative; }
+/* ---- Sidebar bottom: profile card ---- */
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 2px dashed var(--yellow);
+  margin-top: 4px;
+}
 
-.theme-trigger {
+.profile-trigger {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 32px;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
   padding: 6px 10px;
-  border: 2px solid rgba(0, 245, 212, 0.62);
-  border-radius: 10px;
-  color: rgba(255, 255, 255, 0.82);
-  background: rgba(45, 27, 78, 0.54);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 850;
-  list-style: none;
-}
-
-.theme-trigger::-webkit-details-marker { display: none; }
-
-.theme-trigger > :last-child { margin-left: auto; }
-
-.theme-trigger strong { color: var(--yellow); font-size: 13px; }
-
-.theme-panel {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 6px);
-  left: 0;
-  z-index: 30;
-  display: grid;
-  gap: 4px;
-  padding: 6px;
-  border: 2px solid var(--cyan);
+  border: 2px solid rgba(0, 245, 212, 0.5);
   border-radius: 12px;
-  background: rgba(13, 13, 26, 0.96);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.36);
-  animation: panel-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.theme-option {
-  display: grid;
-  gap: 1px;
-  min-height: 38px;
-  padding: 6px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 8px;
   color: var(--fg);
-  background: rgba(45, 27, 78, 0.58);
+  background: rgba(45, 27, 78, 0.6);
   cursor: pointer;
-  text-align: left;
-  font-weight: 850;
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.theme-option:hover {
-  transform: translateX(4px);
-  background: rgba(45, 27, 78, 0.82);
+.profile-trigger:hover {
+  background: rgba(45, 27, 78, 0.85);
+  border-color: var(--cyan);
 }
 
-.theme-option small {
+.profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--cyan);
+  background: linear-gradient(135deg, var(--cyan), var(--magenta));
+  color: var(--bg);
+  flex-shrink: 0;
   overflow: hidden;
-  color: rgba(255, 255, 255, 0.64);
-  font-size: 11px;
+}
+
+.profile-avatar.has-image {
+  border-color: var(--yellow);
+  background: transparent;
+}
+
+.profile-avatar .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.profile-name {
+  flex: 1;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.theme-option.active {
-  border-color: var(--yellow);
-  color: var(--bg);
-  background: var(--yellow);
+.profile-arrow {
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
 }
 
-.theme-option.active small { color: rgba(13, 13, 26, 0.68); }
+/* ---- Profile modal ---- */
+.profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+  animation: fade-overlay 0.2s ease;
+}
+
+@keyframes fade-overlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.profile-modal {
+  width: min(400px, 90vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  border: 3px solid var(--magenta);
+  border-radius: 20px;
+  background: var(--panel);
+  box-shadow: 8px 8px 0 var(--cyan), 16px 16px 0 var(--yellow);
+  animation: panel-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.profile-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 12px;
+  border-bottom: 2px dashed var(--yellow);
+}
+
+.profile-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--fg);
+  text-shadow: 1px 1px 0 var(--purple);
+}
+
+.profile-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.profile-close:hover {
+  color: var(--fg);
+  border-color: var(--magenta);
+}
+
+.profile-modal-body {
+  padding: 16px 18px 20px;
+}
+
+.profile-avatar-section {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 16px;
+}
+
+.profile-avatar-lg {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 3px solid var(--cyan);
+  background: linear-gradient(135deg, var(--cyan), var(--magenta));
+  color: var(--bg);
+  overflow: hidden;
+  box-shadow: 4px 4px 0 var(--purple);
+}
+
+.profile-avatar-lg.has-image {
+  border-color: var(--yellow);
+  background: transparent;
+}
+
+.profile-avatar-lg .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.profile-field {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.profile-field span {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-field input {
+  width: 100%;
+  height: 40px;
+  border: 2px solid rgba(0, 245, 212, 0.4);
+  border-radius: 10px;
+  outline: none;
+  padding: 0 12px;
+  color: var(--fg);
+  background: rgba(45, 27, 78, 0.6);
+  font-size: 14px;
+  font-weight: 500;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.profile-field input:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(0, 245, 212, 0.15);
+}
+
+.profile-field input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.profile-section-label {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 12px;
+  font-weight: 700;
+  margin: 16px 0 8px;
+}
+
+.profile-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.profile-theme-btn {
+  display: grid;
+  gap: 2px;
+  padding: 10px 6px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  color: var(--fg);
+  background: rgba(45, 27, 78, 0.5);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.profile-theme-btn span {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.profile-theme-btn small {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-theme-btn:hover {
+  border-color: var(--cyan);
+  background: rgba(45, 27, 78, 0.75);
+  transform: translateY(-1px);
+}
+
+.profile-theme-btn.active {
+  border-color: var(--yellow);
+  background: var(--yellow);
+  color: var(--bg);
+}
+
+.profile-theme-btn.active small {
+  color: rgba(13, 13, 26, 0.65);
+}
+
+.profile-save {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 18px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--bg);
+  background: linear-gradient(90deg, var(--magenta), var(--cyan));
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 900;
+  transition: opacity 0.2s;
+}
+
+.profile-save:hover {
+  opacity: 0.9;
+}
+
+.profile-save:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.profile-status {
+  margin: 8px 0 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---- Confirm dialog ---- */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+  animation: fade-overlay 0.15s ease;
+}
+
+.confirm-modal {
+  width: min(340px, 88vw);
+  padding: 24px 22px 18px;
+  border: 3px solid var(--magenta);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 6px 6px 0 var(--cyan), 12px 12px 0 var(--yellow);
+  animation: panel-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.confirm-msg {
+  margin: 0 0 20px;
+  color: var(--fg);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.confirm-cancel,
+.confirm-ok {
+  flex: 1;
+  min-height: 38px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  transition: opacity 0.15s;
+}
+
+.confirm-cancel {
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.confirm-cancel:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.confirm-ok {
+  color: var(--bg);
+  background: var(--orange);
+  border-color: var(--orange);
+}
+
+.confirm-ok:hover {
+  opacity: 0.88;
+}
 
 /* ---- Main area ---- */
 .chat-main {
@@ -1114,22 +1779,74 @@ function formatTime(value: string) {
 
 /* ---- Typing indicator ---- */
 .typing-indicator {
-  display: flex;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 38px;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 245, 212, 0.48);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(0, 245, 212, 0.16), rgba(255, 58, 242, 0.12)),
+    rgba(13, 13, 26, 0.7);
+  box-shadow: 0 0 22px rgba(0, 245, 212, 0.2);
+}
+
+.thinking-copy {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+
+.thinking-dots {
+  display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 0;
+  height: 14px;
 }
 
-.typing-indicator span {
-  width: 8px;
-  height: 8px;
+.thinking-dots span {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--cyan);
-  animation: typing-bounce 1.2s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  transform-origin: center bottom;
+  animation: thinking-dot-bounce 0.9s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  box-shadow: 0 0 10px rgba(0, 245, 212, 0.72);
 }
 
-.typing-indicator span:nth-child(2) { animation-delay: 0.15s; }
-.typing-indicator span:nth-child(3) { animation-delay: 0.3s; }
+.thinking-dots span:nth-child(2) { animation-delay: 0.14s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.28s; }
+
+@keyframes thinking-dot-bounce {
+  0%, 80%, 100% {
+    opacity: 0.42;
+    transform: translateY(0) scale(0.82);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-7px) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-dots span {
+    animation-name: thinking-dot-breathe !important;
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
+    transform: none !important;
+  }
+}
+
+@keyframes thinking-dot-breathe {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
 
 /* ---- Composer ---- */
 .composer {
@@ -1331,27 +2048,88 @@ function formatTime(value: string) {
 
 :global([data-theme="cyberpunk"] .prompt-grid button) { border-radius: 4px; }
 
-:global([data-theme="cyberpunk"] .theme-trigger) {
-  border: 1px solid rgba(0, 255, 136, 0.45); border-radius: 4px;
-  color: #e0e0e0; background: rgba(18, 18, 26, 0.58);
-  box-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+:global([data-theme="cyberpunk"] .sidebar-bottom) {
+  border-top: 1px solid rgba(0, 255, 136, 0.3);
 }
 
-:global([data-theme="cyberpunk"] .theme-trigger strong) { color: var(--yellow); }
+:global([data-theme="cyberpunk"] .profile-trigger) {
+  border: 1px solid rgba(0, 255, 136, 0.4); border-radius: 4px;
+  background: rgba(18, 18, 26, 0.58);
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.15);
+}
 
-:global([data-theme="cyberpunk"] .theme-panel) {
-  border: 1px solid rgba(0, 255, 136, 0.55); border-radius: 4px;
+:global([data-theme="cyberpunk"] .profile-trigger:hover) {
+  border-color: rgba(0, 255, 136, 0.7);
+  background: rgba(18, 18, 26, 0.8);
+}
+
+:global([data-theme="cyberpunk"] .profile-avatar) {
+  border: 1px solid rgba(0, 255, 136, 0.6); border-radius: 4px;
+  box-shadow: 0 0 6px rgba(0, 255, 136, 0.3);
+}
+
+:global([data-theme="cyberpunk"] .profile-modal) {
+  border: 1px solid rgba(0, 255, 136, 0.5); border-radius: 4px;
   background: rgba(10, 10, 15, 0.98);
-  box-shadow: 0 0 18px rgba(0, 255, 136, 0.28);
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.25);
 }
 
-:global([data-theme="cyberpunk"] .theme-option) {
-  border-color: rgba(0, 212, 255, 0.5); border-radius: 4px;
+:global([data-theme="cyberpunk"] .profile-modal-header) {
+  border-bottom: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+:global([data-theme="cyberpunk"] .profile-modal-header h3) {
+  text-shadow: -2px 0 #ff00ff, 2px 0 #00d4ff;
+}
+
+:global([data-theme="cyberpunk"] .profile-close) {
+  border-color: rgba(0, 255, 136, 0.4); border-radius: 4px;
+}
+
+:global([data-theme="cyberpunk"] .profile-field input) {
+  border: 1px solid rgba(0, 212, 255, 0.5); border-radius: 4px;
+  background: transparent;
+}
+
+:global([data-theme="cyberpunk"] .profile-field input:focus) {
+  border-color: rgba(0, 255, 136, 0.7);
+  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.15);
+}
+
+:global([data-theme="cyberpunk"] .profile-theme-btn) {
+  border: 1px solid rgba(0, 212, 255, 0.4); border-radius: 4px;
   background: transparent; text-transform: uppercase;
 }
 
-:global([data-theme="cyberpunk"] .theme-option.active) {
-  border-color: var(--yellow); color: var(--bg); background: var(--yellow);
+:global([data-theme="cyberpunk"] .profile-theme-btn.active) {
+  border-color: var(--yellow); background: var(--yellow);
+  color: var(--bg);
+}
+
+:global([data-theme="cyberpunk"] .profile-save) {
+  border-radius: 4px;
+  background: var(--yellow);
+  color: var(--bg);
+}
+
+:global([data-theme="cyberpunk"] .profile-avatar-lg) {
+  border: 2px solid rgba(0, 255, 136, 0.6); border-radius: 4px;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+:global([data-theme="cyberpunk"] .confirm-modal) {
+  border: 1px solid rgba(0, 255, 136, 0.5); border-radius: 4px;
+  background: rgba(10, 10, 15, 0.98);
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.25);
+}
+
+:global([data-theme="cyberpunk"] .confirm-cancel) {
+  border: 1px solid rgba(0, 255, 136, 0.4); border-radius: 4px;
+  background: transparent;
+}
+
+:global([data-theme="cyberpunk"] .confirm-ok) {
+  border-radius: 4px; background: var(--yellow); color: var(--bg);
 }
 
 :global([data-theme="cyberpunk"] .brand-block),
@@ -1366,7 +2144,9 @@ function formatTime(value: string) {
 :global([data-theme="cyberpunk"] .prompt-grid button),
 :global([data-theme="cyberpunk"] .composer-inner textarea),
 :global([data-theme="cyberpunk"] .send),
-:global([data-theme="cyberpunk"] .stop-btn) {
+:global([data-theme="cyberpunk"] .stop-btn),
+:global([data-theme="cyberpunk"] .profile-trigger),
+:global([data-theme="cyberpunk"] .profile-modal) {
   clip-path: polygon(0 8px, 8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px));
 }
 
@@ -1432,34 +2212,139 @@ function formatTime(value: string) {
   color: #fff; background: #0f8f70;
 }
 
-:global([data-theme="clean"] .theme-trigger) {
-  min-height: 38px;
-  border: 1px solid #d1d5db; border-radius: 10px;
-  color: #4b5563; background: #fff;
-  box-shadow: none; font-weight: 500;
+:global([data-theme="clean"] .sidebar-bottom) {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 8px;
+  margin-top: 6px;
 }
 
-:global([data-theme="clean"] .theme-trigger strong) { color: #202123; }
-:global([data-theme="clean"] .theme-trigger > :last-child) { color: #6b7280; }
-
-:global([data-theme="clean"] .theme-panel) {
-  border: 1px solid #e5e7eb; border-radius: 12px;
-  background: #fff; box-shadow: 0 12px 28px rgba(0,0,0,0.12);
+:global([data-theme="clean"] .profile-trigger) {
+  border: 1px solid #e5e7eb; border-radius: 10px;
+  background: #fff; box-shadow: none;
 }
 
-:global([data-theme="clean"] .theme-option) {
-  min-height: 40px; border: 0; border-radius: 8px;
-  color: #202123; background: transparent; font-weight: 500;
+:global([data-theme="clean"] .profile-trigger:hover) {
+  border-color: #d1d5db; background: #f9fafb;
 }
 
-:global([data-theme="clean"] .theme-option small) { color: #6b7280; }
-:global([data-theme="clean"] .theme-option:hover) { background: #f1f5f9; }
-
-:global([data-theme="clean"] .theme-option.active) {
-  color: #fff; background: #202123;
+:global([data-theme="clean"] .profile-avatar) {
+  border: 0; background: #10a37f;
+  color: #fff;
 }
 
-:global([data-theme="clean"] .theme-option.active small) { color: rgba(255,255,255,0.72); }
+:global([data-theme="clean"] .profile-name) {
+  color: #202123; font-weight: 500;
+}
+
+:global([data-theme="clean"] .profile-arrow) {
+  color: #9ca3af;
+}
+
+:global([data-theme="clean"] .profile-modal) {
+  border: 1px solid #e5e7eb; border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+}
+
+:global([data-theme="clean"] .profile-modal-header) {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+:global([data-theme="clean"] .profile-modal-header h3) {
+  color: #202123; font-weight: 600; text-shadow: none;
+}
+
+:global([data-theme="clean"] .profile-close) {
+  border-color: #e5e7eb; color: #6b7280; border-radius: 6px;
+}
+
+:global([data-theme="clean"] .profile-close:hover) {
+  color: #202123; border-color: #d1d5db;
+}
+
+:global([data-theme="clean"] .profile-avatar-lg) {
+  border: 0; background: #10a37f;
+  color: #fff; box-shadow: none;
+}
+
+:global([data-theme="clean"] .profile-field span) {
+  color: #6b7280; font-weight: 500;
+}
+
+:global([data-theme="clean"] .profile-field input) {
+  border: 1px solid #d1d5db; border-radius: 8px;
+  color: #202123; background: #fff; font-weight: 400;
+}
+
+:global([data-theme="clean"] .profile-field input:focus) {
+  border-color: #10a37f;
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.12);
+}
+
+:global([data-theme="clean"] .profile-field input::placeholder) {
+  color: #9ca3af;
+}
+
+:global([data-theme="clean"] .profile-section-label) {
+  color: #6b7280; font-weight: 500;
+}
+
+:global([data-theme="clean"] .profile-theme-btn) {
+  border: 1px solid #e5e7eb; border-radius: 8px;
+  color: #202123; background: #fff;
+}
+
+:global([data-theme="clean"] .profile-theme-btn span) {
+  font-weight: 500;
+}
+
+:global([data-theme="clean"] .profile-theme-btn small) {
+  color: #6b7280;
+}
+
+:global([data-theme="clean"] .profile-theme-btn:hover) {
+  border-color: #d1d5db; background: #f9fafb;
+}
+
+:global([data-theme="clean"] .profile-theme-btn.active) {
+  border-color: #10a37f; background: #10a37f;
+  color: #fff;
+}
+
+:global([data-theme="clean"] .profile-theme-btn.active small) {
+  color: rgba(255,255,255,0.8);
+}
+
+:global([data-theme="clean"] .profile-save) {
+  background: #10a37f; border-radius: 8px;
+  font-weight: 500; color: #fff;
+}
+
+:global([data-theme="clean"] .profile-status) {
+  color: #6b7280; font-weight: 400;
+}
+
+:global([data-theme="clean"] .confirm-modal) {
+  border: 1px solid #e5e7eb; border-radius: 14px;
+  background: #fff; box-shadow: 0 16px 48px rgba(0,0,0,0.15);
+}
+
+:global([data-theme="clean"] .confirm-msg) {
+  color: #202123; font-weight: 500;
+}
+
+:global([data-theme="clean"] .confirm-cancel) {
+  border: 1px solid #d1d5db; color: #4b5563; background: #fff;
+}
+
+:global([data-theme="clean"] .confirm-cancel:hover) {
+  background: #f3f4f6;
+}
+
+:global([data-theme="clean"] .confirm-ok) {
+  border: 0; border-radius: 8px;
+  background: #ef4444; color: #fff; font-weight: 500;
+}
 
 :global([data-theme="clean"] .history-heading) {
   color: #6b7280; font-weight: 500; text-shadow: none; letter-spacing: 0.03em;
@@ -1519,11 +2404,17 @@ function formatTime(value: string) {
 
 :global([data-theme="clean"] .status-pill) {
   border: 1px solid #d1d5db; border-radius: 999px;
-  color: #047857; background: #ecfdf5; box-shadow: none;
+  color: #4b5563; background: #f3f4f6; box-shadow: none;
   font-size: 12px; font-weight: 500; padding: 4px 10px;
 }
 
-:global([data-theme="clean"] .status-dot) { background: #047857; }
+:global([data-theme="clean"] .status-pill.live) {
+  color: #fff; background: #10a37f; border-color: #10a37f;
+}
+
+:global([data-theme="clean"] .status-dot) { background: #9ca3af; }
+
+:global([data-theme="clean"] .status-pill.live .status-dot) { background: #fff; }
 
 :global([data-theme="clean"] .message-stage) { padding: 32px 0 24px; }
 
@@ -1644,7 +2535,18 @@ function formatTime(value: string) {
   transform: none; box-shadow: none; background: #dc2626;
 }
 
-:global([data-theme="clean"] .typing-indicator span) { background: #10a37f; }
+:global([data-theme="clean"] .typing-indicator) {
+  border-color: #d1fae5;
+  background: #ecfdf5;
+  box-shadow: none;
+}
+
+:global([data-theme="clean"] .thinking-copy) { color: #047857; }
+
+:global([data-theme="clean"] .thinking-dots span) {
+  background: #10a37f;
+  box-shadow: 0 0 8px rgba(16, 163, 127, 0.28);
+}
 
 /* ====== Responsive ====== */
 @media (max-width: 900px) {

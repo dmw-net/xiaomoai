@@ -7,6 +7,7 @@ export const API_CONFIG = {
     CHAT: '/ai/chat',
     AUTH_LOGIN: '/auth/login',
     AUTH_REGISTER: '/auth/register',
+    AVATAR_SETTINGS: '/avatar-settings',
     CONVERSATIONS: '/conversations',
   }
 };
@@ -15,6 +16,9 @@ export interface UserInfo {
   userId: number;
   username: string;
   nickname: string;
+  qq?: string;
+  avatarUrl?: string;
+  resolvedAvatarUrl?: string;
 }
 
 const TOKEN_KEY = 'ai_study_buddy_token';

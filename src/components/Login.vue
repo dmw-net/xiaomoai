@@ -111,8 +111,8 @@
       </div>
 
       <div class="visual-hero">
-        <h2 class="hero-title">学点<br/>有用的</h2>
-        <p class="hero-sub">问 AI，读代码，搞懂算法</p>
+        <h2 class="hero-title">学点<br/>小知识</h2>
+        <p class="hero-sub">问 AI，学技术，搞懂知识</p>
       </div>
 
       <div class="visual-footer">
@@ -197,9 +197,24 @@ async function onSubmit() {
       password: form.password,
       nickname: isRegister.value ? form.nickname.trim() || form.username.trim() : undefined,
     });
-    const data = res.data as { token: string; userId: number; username: string; nickname: string };
+    const data = res.data as {
+      token: string;
+      userId: number;
+      username: string;
+      nickname: string;
+      qq?: string;
+      avatarUrl?: string;
+      resolvedAvatarUrl?: string;
+    };
     setToken(data.token);
-    setUser({ userId: data.userId, username: data.username, nickname: data.nickname });
+    setUser({
+      userId: data.userId,
+      username: data.username,
+      nickname: data.nickname,
+      qq: data.qq,
+      avatarUrl: data.avatarUrl,
+      resolvedAvatarUrl: data.resolvedAvatarUrl,
+    });
     emit('login-success');
   } catch (err: any) {
     errorMsg.value = err?.response?.data?.error || '出了点问题，再试试';
