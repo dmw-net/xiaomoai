@@ -34,6 +34,25 @@
         <span>新对话</span>
       </button>
 
+      <div class="workspace-switch">
+        <button
+          type="button"
+          :class="{ active: activeView === 'chat' }"
+          @click="openChatWorkspace"
+        >
+          <Icon icon="bot" :size="17" />
+          <span>AI 对话</span>
+        </button>
+        <button
+          type="button"
+          :class="{ active: activeView === 'image' }"
+          @click="openImageStudio"
+        >
+          <Icon icon="palette" :size="17" />
+          <span>AI 绘画</span>
+        </button>
+      </div>
+
       <div class="history-heading">
         <span>对话历史</span>
         <small>{{ conversations.length }}</small>
@@ -196,15 +215,17 @@
         </button>
         <div class="topbar-info">
           <p class="eyebrow">AI STUDY BUDDY</p>
-          <h2>{{ activeConversation?.title || '新对话' }}</h2>
+          <h2>{{ activeView === 'image' ? 'AI 绘画工作台' : (activeConversation?.title || '新对话') }}</h2>
         </div>
-        <div class="status-pill" :class="{ live: loading }">
-          <span class="status-dot" :class="{ pulsing: loading }"></span>
-          {{ loading ? '思考中' : '就绪' }}
+        <div class="status-pill" :class="{ live: activeView === 'chat' && loading }">
+          <span class="status-dot" :class="{ pulsing: activeView === 'chat' && loading }"></span>
+          {{ activeView === 'image' ? '创作模式' : (loading ? '思考中' : '就绪') }}
         </div>
       </header>
 
-      <div ref="scrollContainer" class="message-stage">
+      <ImageGen v-if="activeView === 'image'" class="image-workspace-slot" />
+
+      <div v-else ref="scrollContainer" class="message-stage">
         <section v-if="messagesLoading" class="empty-state compact">
           <div class="typing-indicator" role="status" aria-live="polite" aria-label="正在加载对话">
             <span class="thinking-copy">加载中</span>
@@ -267,8 +288,16 @@
         </div>
       </div>
 
-      <form class="composer" @submit.prevent="onSend">
+      <form v-if="activeView === 'chat'" class="composer" @submit.prevent="onSend">
         <div class="composer-inner">
+          <button
+            class="image-gen-btn"
+            type="button"
+            title="AI 绘画"
+            @click="openImageStudio"
+          >
+            <Icon icon="palette" :size="18" />
+          </button>
           <textarea
             ref="textareaRef"
             v-model="inputText"
@@ -300,12 +329,14 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { marked } from 'marked';
 import Icon from './Icon.vue';
+import ImageGen from './ImageGen.vue';
 import { API_CONFIG, getApiUrl, getToken, getUser, setUser } from '../config/api';
 import { getTheme, setTheme, THEME_OPTIONS } from '../config/theme';
 import type { UserInfo } from '../config/api';
 import type { ThemeName } from '../config/theme';
 
 type Role = 'user' | 'assistant';
+type WorkspaceView = 'chat' | 'image';
 
 interface Conversation {
   id: number;
@@ -355,6 +386,7 @@ const avatarForm = reactive({ userQq: '', aiQq: '' });
 const avatarSaving = ref(false);
 const avatarStatus = ref('');
 const profileOpen = ref(false);
+const activeView = ref<WorkspaceView>('chat');
 const profileForm = reactive({ nickname: '', userQq: '', aiQq: '' });
 const profileSaving = ref(false);
 const profileStatus = ref('');
@@ -634,6 +666,16 @@ function openProfile() {
   profileOpen.value = true;
 }
 
+function openImageStudio() {
+  activeView.value = 'image';
+  sidebarOpen.value = false;
+}
+
+function openChatWorkspace() {
+  activeView.value = 'chat';
+  sidebarOpen.value = false;
+}
+
 function closeProfile() {
   profileOpen.value = false;
   profileStatus.value = '';
@@ -676,6 +718,7 @@ async function loadConversations() {
 
 async function selectConversation(conversationId: number) {
   closeStream();
+  activeView.value = 'chat';
   activeConversationId.value = conversationId;
   sidebarOpen.value = false;
   messagesLoading.value = true;
@@ -694,6 +737,7 @@ async function selectConversation(conversationId: number) {
 
 function onNewChat() {
   closeStream();
+  activeView.value = 'chat';
   activeConversationId.value = null;
   messages.value = [];
   inputText.value = '';
@@ -1106,6 +1150,39 @@ function formatTime(value: string) {
   background-image: none;
   border-color: var(--orange);
   animation: none;
+}
+
+.workspace-switch {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  padding: 6px;
+  border: 2px solid rgba(0, 245, 212, 0.22);
+  border-radius: 14px;
+  background: rgba(13, 13, 26, 0.42);
+}
+
+.workspace-switch button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.72);
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.workspace-switch button.active,
+.workspace-switch button:hover {
+  border-color: rgba(0, 245, 212, 0.42);
+  color: var(--fg);
+  background: rgba(0, 245, 212, 0.12);
 }
 
 .history-heading {
@@ -1580,6 +1657,11 @@ function formatTime(value: string) {
   overflow: hidden;
 }
 
+.image-workspace-slot {
+  height: 100%;
+  min-height: 0;
+}
+
 .chat-topbar {
   display: flex;
   align-items: center;
@@ -1974,6 +2056,27 @@ function formatTime(value: string) {
   animation: pulse-stop 1.5s cubic-bezier(0.37, 0, 0.63, 1) infinite;
 }
 
+.image-gen-btn {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--cyan);
+  border-radius: 50%;
+  color: var(--cyan);
+  background: rgba(0, 245, 212, 0.08);
+  cursor: pointer;
+  transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+  margin-right: 4px;
+}
+
+.image-gen-btn:hover {
+  transform: scale(1.1);
+  background: rgba(0, 245, 212, 0.18);
+  box-shadow: 0 0 16px rgba(0, 245, 212, 0.35);
+}
+
 /* ====== Cyberpunk theme ====== */
 :global([data-theme="cyberpunk"] .chat-shell::before) {
   background:
@@ -2015,11 +2118,16 @@ function formatTime(value: string) {
 }
 
 :global([data-theme="cyberpunk"] .new-chat),
-:global([data-theme="cyberpunk"] .logout) {
+:global([data-theme="cyberpunk"] .logout),
+:global([data-theme="cyberpunk"] .workspace-switch) {
   border-width: 2px; border-radius: 4px;
   box-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
   animation: none; background: transparent;
   text-transform: uppercase; letter-spacing: 0.1em;
+}
+
+:global([data-theme="cyberpunk"] .workspace-switch button) {
+  border-radius: 4px;
 }
 
 :global([data-theme="cyberpunk"] .new-chat:hover),
@@ -2187,6 +2295,7 @@ function formatTime(value: string) {
 :global([data-theme="cyberpunk"] .history-main),
 :global([data-theme="cyberpunk"] .history-delete),
 :global([data-theme="cyberpunk"] .new-chat),
+:global([data-theme="cyberpunk"] .workspace-switch),
 :global([data-theme="cyberpunk"] .logout),
 :global([data-theme="cyberpunk"] .prompt-grid button),
 :global([data-theme="cyberpunk"] .composer-inner textarea),
@@ -2257,6 +2366,26 @@ function formatTime(value: string) {
 
 :global([data-theme="clean"] .new-chat:hover) {
   color: #fff; background: #0f8f70;
+}
+
+:global([data-theme="clean"] .workspace-switch) {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+:global([data-theme="clean"] .workspace-switch button) {
+  border: 0;
+  border-radius: 8px;
+  color: #4b5563;
+  background: transparent;
+  font-weight: 500;
+}
+
+:global([data-theme="clean"] .workspace-switch button.active),
+:global([data-theme="clean"] .workspace-switch button:hover) {
+  color: #202123;
+  background: #ececf1;
 }
 
 :global([data-theme="clean"] .sidebar-bottom) {
@@ -2588,6 +2717,17 @@ function formatTime(value: string) {
   transform: none; box-shadow: none; background: #dc2626;
 }
 
+:global([data-theme="clean"] .image-gen-btn) {
+  border-color: #10a37f; color: #10a37f;
+  background: rgba(16, 163, 127, 0.08);
+  box-shadow: none;
+}
+
+:global([data-theme="clean"] .image-gen-btn:hover) {
+  transform: none; background: rgba(16, 163, 127, 0.16);
+  box-shadow: none;
+}
+
 :global([data-theme="clean"] .typing-indicator) {
   border-color: #d1fae5;
   background: #ecfdf5;
@@ -2724,6 +2864,7 @@ function formatTime(value: string) {
   }
 
   .send, .stop-btn { width: 42px; height: 42px; border-width: 3px; }
+  .image-gen-btn { width: 38px; height: 38px; border-width: 2px; }
 }
 
 /* ---- Extra small screens ---- */
@@ -2792,6 +2933,7 @@ function formatTime(value: string) {
   }
 
   .send, .stop-btn { width: 38px; height: 38px; border-width: 2px; }
+  .image-gen-btn { width: 34px; height: 34px; }
 
   .empty-state {
     padding: 16px;

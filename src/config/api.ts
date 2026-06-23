@@ -11,6 +11,7 @@ export const API_CONFIG = {
     AUTH_REGISTER: '/auth/register',
     AVATAR_SETTINGS: '/avatar-settings',
     CONVERSATIONS: '/conversations',
+    IMAGE_GENERATE: '/image/generate',
   }
 };
 
