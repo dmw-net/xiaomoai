@@ -5,7 +5,7 @@
     <div class="decor decor-three" aria-hidden="true">{ }</div>
     <div class="decor decor-four" aria-hidden="true">递归</div>
     <div class="decor decor-five" aria-hidden="true">SELECT *</div>
-    <div class="decor decor-six" aria-hidden="true">∫ f(x)dx</div>
+    <div class="decor decor-six" aria-hidden="true">Integral f(x)dx</div>
 
     <!-- 移动端侧边栏遮罩 -->
     <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
@@ -21,7 +21,7 @@
             referrerpolicy="no-referrer"
             @error="onAiAvatarError"
           />
-          <Icon v-else icon="sparkles" :size="28" />
+          <Icon v-else icon="chat" :size="28" />
         </div>
         <div>
           <h1>小茉</h1>
@@ -40,7 +40,7 @@
           :class="{ active: activeView === 'chat' }"
           @click="openChatWorkspace"
         >
-          <Icon icon="bot" :size="17" />
+          <Icon icon="chat" :size="17" />
           <span>AI 对话</span>
         </button>
         <button
@@ -50,6 +50,14 @@
         >
           <Icon icon="palette" :size="17" />
           <span>AI 绘画</span>
+        </button>
+        <button
+          type="button"
+          :class="{ active: activeView === 'video' }"
+          @click="openVideoStudio"
+        >
+          <Icon icon="video" :size="17" />
+          <span>AI 视频</span>
         </button>
       </div>
 
@@ -87,7 +95,7 @@
 
       <div class="sidebar-bottom">
         <button class="profile-trigger" type="button" @click="openProfile">
-          <div class="profile-avatar" :class="{ 'has-image': userAvatarUrl }">
+          <span class="profile-avatar" :class="{ 'has-image': userAvatarUrl }">
             <img
               v-if="userAvatarUrl"
               class="avatar-img"
@@ -97,7 +105,7 @@
               @error="onUserAvatarError"
             />
             <Icon v-else icon="user" :size="20" />
-          </div>
+          </span>
           <span class="profile-name">{{ userDisplayName }}</span>
           <Icon icon="chevron-right" :size="14" class="profile-arrow" />
         </button>
@@ -215,15 +223,16 @@
         </button>
         <div class="topbar-info">
           <p class="eyebrow">AI STUDY BUDDY</p>
-          <h2>{{ activeView === 'image' ? 'AI 绘画工作台' : (activeConversation?.title || '新对话') }}</h2>
+          <h2>{{ workspaceTitle }}</h2>
         </div>
         <div class="status-pill" :class="{ live: activeView === 'chat' && loading }">
           <span class="status-dot" :class="{ pulsing: activeView === 'chat' && loading }"></span>
-          {{ activeView === 'image' ? '创作模式' : (loading ? '思考中' : '就绪') }}
+          {{ workspaceStatus }}
         </div>
       </header>
 
       <ImageGen v-if="activeView === 'image'" class="image-workspace-slot" />
+      <VideoGen v-else-if="activeView === 'video'" class="image-workspace-slot" />
 
       <div v-else ref="scrollContainer" class="message-stage">
         <section v-if="messagesLoading" class="empty-state compact">
@@ -275,7 +284,7 @@
               referrerpolicy="no-referrer"
               @error="onAiAvatarError"
             />
-            <Icon v-else :icon="message.role === 'user' ? 'user' : 'bot'" :size="22" />
+            <Icon v-else :icon="message.role === 'user' ? 'user' : 'chat'" :size="22" />
           </div>
           <article class="message-bubble">
             <div v-if="message.role === 'assistant' && message.content" class="md-content" v-html="renderMarkdown(message.content)"></div>
@@ -330,13 +339,14 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { marked } from 'marked';
 import Icon from './Icon.vue';
 import ImageGen from './ImageGen.vue';
+import VideoGen from './VideoGen.vue';
 import { API_CONFIG, getApiUrl, getToken, getUser, setUser } from '../config/api';
 import { getTheme, setTheme, THEME_OPTIONS } from '../config/theme';
 import type { UserInfo } from '../config/api';
 import type { ThemeName } from '../config/theme';
 
 type Role = 'user' | 'assistant';
-type WorkspaceView = 'chat' | 'image';
+type WorkspaceView = 'chat' | 'image' | 'video';
 
 interface Conversation {
   id: number;
@@ -386,7 +396,15 @@ const avatarForm = reactive({ userQq: '', aiQq: '' });
 const avatarSaving = ref(false);
 const avatarStatus = ref('');
 const profileOpen = ref(false);
-const activeView = ref<WorkspaceView>('chat');
+const ACTIVE_VIEW_KEY = 'ai_study_buddy_active_view';
+const savedView = localStorage.getItem(ACTIVE_VIEW_KEY) as WorkspaceView | null;
+const activeView = ref<WorkspaceView>(
+  savedView === 'image' || savedView === 'video' || savedView === 'chat' ? savedView : 'chat'
+);
+
+watch(activeView, (newView) => {
+  localStorage.setItem(ACTIVE_VIEW_KEY, newView);
+});
 const profileForm = reactive({ nickname: '', userQq: '', aiQq: '' });
 const profileSaving = ref(false);
 const profileStatus = ref('');
@@ -399,7 +417,7 @@ const currentTheme = ref<ThemeName>(getTheme());
 const themeOptions = THEME_OPTIONS;
 
 const starterPrompts = [
-  '帮我找找最新 AIAgent 学习教程',
+  '帮我找一份 AI Agent 学习路线',
   '解释一下快速排序算法',
   '推荐一些面试技巧',
 ];
@@ -407,6 +425,15 @@ const starterPrompts = [
 const activeConversation = computed(() =>
   conversations.value.find(item => item.id === activeConversationId.value) || null
 );
+const workspaceTitle = computed(() => {
+  if (activeView.value === 'image') return 'AI 绘画工作台';
+  if (activeView.value === 'video') return 'AI 视频工作台';
+  return activeConversation.value?.title || '新对话';
+});
+const workspaceStatus = computed(() => {
+  if (activeView.value === 'image' || activeView.value === 'video') return '创作模式';
+  return loading.value ? '思考中' : '就绪';
+});
 const canSend = computed(() => inputText.value.trim().length > 0 && !loading.value);
 const userDisplayName = computed(() =>
   userInfo.value?.nickname || userInfo.value?.username || '未登录'
@@ -544,7 +571,7 @@ function onEscKey(e: KeyboardEvent) {
 onMounted(async () => {
   await loadAvatarSettings();
   await loadConversations();
-  if (conversations.value.length > 0) {
+  if (activeView.value === 'chat' && conversations.value.length > 0) {
     await selectConversation(conversations.value[0].id);
   }
   scrollContainer.value?.addEventListener('scroll', onScroll, { passive: true });
@@ -668,6 +695,11 @@ function openProfile() {
 
 function openImageStudio() {
   activeView.value = 'image';
+  sidebarOpen.value = false;
+}
+
+function openVideoStudio() {
+  activeView.value = 'video';
   sidebarOpen.value = false;
 }
 
@@ -871,7 +903,7 @@ async function openStream(conversationId: number, text: string, messageIndex: nu
         emit('logout'); return;
       }
       setAssistantMessage(messageIndex, response.status === 401
-        ? 'AI 服务不可用，检查 API Key'
+        ? 'AI 服务不可用，请检查 API Key'
         : `请求失败 (${response.status})`);
       return;
     }
@@ -897,12 +929,12 @@ async function openStream(conversationId: number, text: string, messageIndex: nu
       const msg = messages.value[messageIndex];
       const content = (msg?.content || '').trim();
       if (content) {
-        setAssistantMessage(messageIndex, content + '\n\n---\n*已停止生成，你可以继续提问或让我完善上面的内容。*');
+        setAssistantMessage(messageIndex, content + '\n\n---\n*已停止生成，你可以继续提问或让我完善上面的内容。');
       } else {
         setAssistantMessage(messageIndex, '已停止生成。你可以继续提问，或点击发送让我重新回答。');
       }
     } else if (err.name !== 'AbortError') {
-      setAssistantMessage(messageIndex, '网络开小差了，再试试');
+      setAssistantMessage(messageIndex, '网络开小差了，再试一次。');
     }
   } finally {
     loading.value = false;
@@ -927,12 +959,12 @@ function applySsePart(part: string, messageIndex: number) {
   if (eventName === 'error') {
     setAssistantMessage(messageIndex, data);
   } else if (eventName === 'progress') {
-    // 工具进度提示（如"正在生成图片中，请稍候..."）
+    // 工具进度提示
     if (messageIndex >= 0 && messageIndex < messages.value.length) {
       const msg = messages.value[messageIndex];
-      const progressHint = `\n\n> ⏳ ${data}`;
+      const progressHint = `\n\n> ${data}`;
       // 如果之前已有进度提示，替换掉；否则追加
-      const existingHint = msg.content.match(/\n\n> ⏳ .+/);
+      const existingHint = msg.content.match(/\n\n> .+/);
       if (existingHint) {
         msg.content = msg.content.replace(existingHint[0], progressHint);
       } else {
@@ -943,8 +975,8 @@ function applySsePart(part: string, messageIndex: number) {
   } else if (messageIndex >= 0 && messageIndex < messages.value.length) {
     // 正文数据到来时，清除之前的进度提示
     const msg = messages.value[messageIndex];
-    if (msg.content.includes('> ⏳ ')) {
-      msg.content = msg.content.replace(/\n\n> ⏳ .+/, '');
+    if (msg.content.includes('> ')) {
+      msg.content = msg.content.replace(/\n\n> .+/, '');
     }
     msg.content += data;
   }
@@ -2997,3 +3029,11 @@ function formatTime(value: string) {
   :global([data-theme="clean"] .message-bubble :deep(.md-content)) { font-size: 13px; }
 }
 </style>
+
+
+
+
+
+
+
+

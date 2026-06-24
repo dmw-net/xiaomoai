@@ -1,4 +1,4 @@
-const isProduction = import.meta.env.PROD;
+﻿const isProduction = import.meta.env.PROD;
 const DEV_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
 const PROD_URL = 'https://api.2025521.online';
 const BASE_URL = isProduction ? PROD_URL : DEV_URL;
@@ -12,6 +12,8 @@ export const API_CONFIG = {
     AVATAR_SETTINGS: '/avatar-settings',
     CONVERSATIONS: '/conversations',
     IMAGE_GENERATE: '/image/generate',
+    VIDEO_GENERATE: '/video/generate',
+    VIDEO_STATUS: '/video/status',
   }
 };
 
@@ -79,3 +81,4 @@ export function getApiUrl(endpoint: string, params?: Record<string, string>): st
 
   return url;
 }
+

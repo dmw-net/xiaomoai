@@ -1,7 +1,7 @@
 <template>
   <section class="login-screen" :class="{ swapped, transitioning }">
     <!-- Layout swap toggle -->
-    <button class="swap-btn" type="button" @click="toggleLayout" :title="swapped ? '换回去' : '换个布局'" :style="{ left: seamLeft }">
+    <button class="swap-btn" type="button" @click="toggleLayout" :title="swapped ? '换回去' : '换个布局'">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
         <path d="M5 8.5C7 5.5 12.5 4.5 18.5 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         <polyline points="15.5,4.5 18.5,7.5 15.5,10.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -42,7 +42,7 @@
           <input
             v-model="form.password"
             type="password"
-            placeholder="至少 4 位"
+            placeholder="至少 8 位"
             :disabled="loading"
             autocomplete="current-password"
           />
@@ -123,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, nextTick, reactive, ref } from 'vue';
 import axios from 'axios';
 import { API_CONFIG, getApiUrl, setToken, setUser } from '../config/api';
 import { getTheme, setTheme, THEME_OPTIONS } from '../config/theme';
@@ -141,42 +141,19 @@ const currentThemeOption = computed(() =>
 );
 
 const form = reactive({ username: '', password: '', nickname: '' });
-const canSubmit = computed(() => form.username.trim().length > 0 && form.password.length >= 4);
+const canSubmit = computed(() => form.username.trim().length > 0 && form.password.length >= 8);
 
 const swapped = ref(false);
 const transitioning = ref(false);
-const seamLeft = ref('50%');
 
 function toggleLayout() {
   if (transitioning.value) return;
   transitioning.value = true;
   setTimeout(() => {
     swapped.value = !swapped.value;
-    nextTick(() => {
-      transitioning.value = false;
-      updateSeam();
-    });
+    nextTick(() => { transitioning.value = false; });
   }, 200);
 }
-
-function updateSeam() {
-  const el = document.querySelector('.login-screen') as HTMLElement | null;
-  if (!el) return;
-  const w = el.offsetWidth;
-  const col1 = swapped.value
-    ? w - Math.min(480, Math.max(360, w * 0.35))
-    : Math.min(480, Math.max(360, w * 0.35));
-  seamLeft.value = `${col1}px`;
-}
-
-onMounted(() => {
-  updateSeam();
-  window.addEventListener('resize', updateSeam);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('resize', updateSeam);
-});
 
 function toggleMode() { isRegister.value = !isRegister.value; errorMsg.value = ''; }
 
@@ -227,10 +204,13 @@ async function onSubmit() {
 <style scoped>
 /* ====== Layout ====== */
 .login-screen {
+  --form-column: clamp(360px, 35vw, 480px);
+  --seam-left: var(--form-column);
   display: grid;
-  grid-template-columns: minmax(360px, 480px) 1fr;
+  grid-template-columns: var(--form-column) minmax(0, 1fr);
   min-height: 100dvh;
   overflow: hidden;
+  position: relative;
 }
 
 /* ====== Form Panel ====== */
@@ -649,11 +629,11 @@ async function onSubmit() {
 .swap-btn {
   position: absolute;
   top: 50%;
+  left: var(--seam-left);
   z-index: 10;
   width: 40px;
   height: 40px;
-  margin-left: -20px;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
   border: 1.5px solid rgba(255, 255, 255, 0.12);
   border-radius: 50%;
   background: rgba(13, 13, 26, 0.85);
@@ -665,23 +645,24 @@ async function onSubmit() {
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: left 0.38s cubic-bezier(0.16, 1, 0.3, 1), color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  transition: left 0.38s cubic-bezier(0.16, 1, 0.3, 1), color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
 .swap-btn:hover {
   color: var(--fg);
   border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-50%) scale(1.12) rotate(180deg);
+  transform: translate(-50%, -50%) scale(1.12) rotate(180deg);
   box-shadow: 0 0 20px rgba(0, 245, 212, 0.15);
 }
 
 .swap-btn:active {
-  transform: translateY(-50%) scale(0.95) rotate(180deg);
+  transform: translate(-50%, -50%) scale(0.95) rotate(180deg);
 }
 
 /* ====== Swapped State ====== */
 .login-screen.swapped {
-  grid-template-columns: 1fr minmax(360px, 480px);
+  --seam-left: calc(100% - var(--form-column));
+  grid-template-columns: minmax(0, 1fr) var(--form-column);
 }
 
 .login-screen.swapped .form-panel {
@@ -704,10 +685,10 @@ async function onSubmit() {
 
 /* ====== Animations ====== */
 @keyframes drift {
-  0%, 100% { transform: translate(0, 0) rotate(var(--r, 0deg)); }
-  25% { transform: translate(8px, -12px) rotate(calc(var(--r, 0deg) + 2deg)); }
-  50% { transform: translate(-4px, 6px) rotate(calc(var(--r, 0deg) - 1deg)); }
-  75% { transform: translate(6px, 10px) rotate(calc(var(--r, 0deg) + 1deg)); }
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(8px, -12px) rotate(2deg); }
+  50% { transform: translate(-4px, 6px) rotate(-1deg); }
+  75% { transform: translate(6px, 10px) rotate(1deg); }
 }
 
 @keyframes dot-float {
@@ -969,7 +950,13 @@ async function onSubmit() {
 /* ====== Responsive ====== */
 @media (max-width: 860px) {
   .login-screen {
+    --form-column: 100%;
+    --seam-left: 100%;
     grid-template-columns: 1fr;
+  }
+
+  .swap-btn {
+    display: none;
   }
 
   .visual-panel {
